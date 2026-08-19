@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Konfigurator Domków - Holcim & Xella</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { 
+                        brand: { blue: '#005A9C', blueHover: '#00467F', green: '#78BE20', dark: '#020617', light: '#F8FAFC', border: '#CBD5E1', muted: '#334155' },
+                        holcim: { blue: '#002F6C', green: '#C4D600', cyan: '#00A3E0', dark: '#001A3D' },
+                        xella: { yellow: '#FFB81C', blue: '#0033A0' }
+                    },
+                    fontFamily: { 'sans': ['Inter', 'sans-serif'] },
+                    boxShadow: { 'card': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)' }
+                }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+<style>
+    body { background-color: #F8FAFC; }
+    .step-transition { transition: opacity 0.3s ease, transform 0.3s ease; display: none; opacity: 0; transform: translateY(10px); }
+    .step-transition.active { display: block; opacity: 1; transform: translateY(0); }
+    
+    .selection-card { transition: all 0.2s ease; border: 2px solid #CBD5E1; }
+    .selection-card:hover { border-color: #94A3B8; transform: translateY(-2px); }
+    .selection-card.selected { border-color: #002F6C; background-color: #F0F4F8; box-shadow: 0 4px 12px rgba(0, 47, 108, 0.1); }
+
+    .param-btn { border: 2px solid #E2E8F0; transition: all 0.2s; }
+    .param-btn:hover { border-color: #CBD5E1; background-color: #F8FAFC; }
+    .param-btn.active { border-color: #002F6C; background-color: #F0F4F8; color: #002F6C; }
+
+    /* WIZUALIZACJA BUDYNKU BAZOWA */
+    .house-container { position: relative; width: 220px; height: 220px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; margin: 0 auto; transition: all 0.4s ease; }
+    .h-roof { width: 0; height: 0; border-left: 100px solid transparent; border-right: 100px solid transparent; border-bottom: 75px solid #64748B; transition: all 0.4s ease; z-index: 10; }
+    .h-roof.plaski { border-left: 0; border-right: 0; border-bottom: 20px solid #64748B; width: 180px; }
+    .h-roof.kopertowy { border-left: 45px solid transparent; border-right: 45px solid transparent; border-bottom: 65px solid #475569; width: 180px; }
+    .h-body { width: 170px; height: 100px; background-color: #E2E8F0; position: relative; transition: all 0.4s ease; border: 3px solid #94A3B8; border-top: none; z-index: 5;}
+    .h-body.pietrowy { height: 150px; }
+    .h-body.poddasze { height: 120px; }
+    
+    /* Okna 1-4 */
+    .h-window, .h-window-2, .h-window-3, .h-window-4 { position: absolute; width: 30px; height: 40px; background: #93C5FD; border: 3px solid #fff; transition: all 0.4s; }
+    .h-window { top: 25px; left: 20px; }
+    .h-window-2 { top: 25px; right: 20px; }
+    .h-window-3 { top: 85px; left: 20px; opacity: 0; pointer-events: none; }
+    .h-window-4 { top: 85px; right: 20px; opacity: 0; pointer-events: none; }
+    .h-body.pietrowy .h-window-3, .h-body.pietrowy .h-window-4 { opacity: 1; pointer-events: auto; }
+
+    .h-door { position: absolute; width: 40px; height: 60px; background: #334155; bottom: 0; left: 50%; transform: translateX(-50%); transition: all 0.4s;}
+    .h-foundation { width: 190px; height: 20px; background-color: #94A3B8; border-radius: 4px; transition: all 0.4s ease; z-index: 4; margin-top: -2px;}
+    .h-ceiling-line { position: absolute; top: 50%; left:0; width: 100%; height: 4px; background: transparent; transition: all 0.4s; }
+    
+    /* Rdzenie wewn. */
+    .h-core-line { position: absolute; top: 0; left: 50%; width: 4px; height: 100%; background: transparent; transition: all 0.4s; transform: translateX(-50%); }
+    .h-partition-line { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transition: all 0.4s; pointer-events: none; }
+    .p-line { position: absolute; top: 0; width: 2px; height: 100%; background: transparent; transition: inherit; }
+
+    @keyframes glow-pulse {
+        0% { box-shadow: 0 0 5px #005A9C, inset 0 0 5px #005A9C; }
+        50% { box-shadow: 0 0 15px #005A9C, inset 0 0 15px #005A9C; }
+        100% { box-shadow: 0 0 5px #005A9C, inset 0 0 5px #005A9C; }
+    }
+    @keyframes roof-glow {
+        0% { filter: drop-shadow(0 -5px 5px rgba(0,90,156,0.5)); }
+        50% { filter: drop-shadow(0 -10px 15px rgba(0,90,156,0.8)); }
+        100% { filter: drop-shadow(0 -5px 5px rgba(0,90,156,0.5)); }
+    }
+
+    .hl-roof { border-bottom-color: #005A9C !important; z-index: 50 !important; animation: roof-glow 1.5s infinite; }
+    .hl-body { background-color: #f0f7ff !important; border-color: #005A9C !important; z-index: 50 !important; animation: glow-pulse 1.5s infinite; }
+    .hl-win { background-color: #005A9C !important; border-color: #ffffff !important; z-index: 50 !important; animation: glow-pulse 1.5s infinite; }
+    .hl-found { background-color: #005A9C !important; z-index: 50 !important; animation: glow-pulse 1.5s infinite; }
+    .hl-ceiling { background-color: #005A9C !important; height: 8px !important; margin-top: -2px; z-index: 50 !important; animation: glow-pulse 1.5s infinite; }
+    .hl-core { background-color: #005A9C !important; width: 8px !important; margin-left: -2px; z-index: 50 !important; animation: glow-pulse 1.5s infinite; }
+    .hl-partition .p-line { background-color: #005A9C !important; box-shadow: 0 0 10px #005A9C; }
+    .hl-partition { z-index: 50 !important; animation: glow-pulse 1.5s infinite; }
+
+    .wall-row { transition: all 0.2s ease; border-left: 3px solid transparent; position: relative; overflow: hidden; }
+    .wall-row.expanded { border-left-color: #005A9C; background-color: #F8FAFC; border-top: 1px solid #CBD5E1; border-bottom: 1px solid #CBD5E1; }
+    .modules-breakdown { max-height: 0; opacity: 0; transition: all 0.3s ease; overflow: hidden; }
+    .wall-row.expanded .modules-breakdown { max-height: 1200px; opacity: 1; padding: 1.5rem; }
+
+    .layer-vis { transition: all 0.2s ease; width: 100%; border-bottom: 1px solid rgba(0,0,0,0.1); position: relative; }
+    .layer-vis.highlight { transform: scaleX(1.15) scaleY(1.1); z-index: 20; box-shadow: 0 0 0 3px #005A9C, 0 0 15px rgba(0,90,156,0.4); border-radius: 2px; }
+    .layer-row-highlight { background-color: #f0f7ff !important; border-color: #005A9C !important; }
+
+    .c-tooltip { position: relative; display: flex; flex-direction: column; align-items: center; cursor: help; }
+    .c-tooltip .tooltip-text { visibility: hidden; position: absolute; z-index: 9999; bottom: 120%; width: 220px; background-color: #1E293B; color: #fff; text-align: center; border-radius: 6px; padding: 10px; font-size: 0.75rem; opacity: 0; transition: opacity 0.2s; pointer-events: none; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3);}
+    .c-tooltip:hover .tooltip-text { visibility: visible; opacity: 1; }
+
+    @media print {
+        body { background: white; }
+        .shadow-card, .shadow-sm { box-shadow: none !important; border: 1px solid #e2e8f0 !important; }
+        #stepper-container-4 { display: none; }
+    }
+</style>
+</head>
+<body class="text-brand-dark antialiased flex flex-col min-h-screen">
+
+    <header class="bg-white border-b border-brand-border sticky top-0 z-50 shadow-sm" data-html2canvas-ignore="true">
+        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <button onclick="goToStep(1)" class="flex items-center gap-6 hover:opacity-80 transition-opacity">
+                <div class="flex items-center gap-4 border-r border-slate-300 pr-4">
+                    <img src="https://www.holcim.pl/sites/poland2/files/2024-01/holcim_logo.png" alt="Holcim" class="h-8 object-contain">
+                </div>
+                <div class="flex items-center gap-2">
+                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTK3JnHgGcdMfoxP8nAgwseMn_AsazEzfg_deZEOG3awHOQ6Ddm4N9E2NKs&s=10" alt="Xella" class="h-6 object-contain">
+                </div>
+            </button>
+            <div class="hidden md:block text-xs font-bold text-brand-muted uppercase tracking-wider">
+                Konfigurator Budynku
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow pb-24">
+
+        <!-- KROK 1 -->
+        <section id="step-1" class="step-transition active border-b border-brand-border bg-white">
+            <div class="container mx-auto px-6 py-16 md:py-24 relative z-10">
+                <div class="grid lg:grid-cols-2 gap-12 items-center">
+                    <div>
+                        <div class="inline-flex items-center gap-2 bg-slate-100 text-brand-muted font-semibold px-3 py-1 rounded text-xs mb-6 uppercase tracking-wider border border-slate-200">
+                            <i data-lucide="calculator" class="w-3.5 h-3.5"></i> Konfigurator kosztów i rozwiązań budowlanych
+                        </div>
+                        <h1 class="text-4xl md:text-5xl font-extrabold leading-tight mb-6 text-brand-dark tracking-tight">
+                            Skonfiguruj swój wymarzony dom. Poznaj koszty i najlepsze rozwiązania.
+                        </h1>
+                        <p class="text-lg text-brand-muted mb-8 leading-relaxed">Wybieraj świadomie technologie dla swojego domu. Połącz możliwości betonu <strong>Holcim Ecopact </strong>, bloczków <strong>Ytong i Silka (Xella)</strong> oraz innych nowoczesnych rozwiązań.</p>
+                        <button onclick="goToStep(2)" class="bg-holcim-blue hover:bg-brand-blueHover text-white font-bold py-4 px-8 rounded-lg transition-all flex items-center gap-2 text-lg shadow-sm">
+                            Rozpocznij konfigurację <i data-lucide="arrow-right" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                    <div class="relative h-[350px] md:h-[450px] rounded-2xl overflow-hidden shadow-2xl border-4 border-white">
+                        <img src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Nowoczesny dom jednorodzinny" class="w-full h-full object-cover">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <script>
+            function renderStepper(currentStep) {
+                const steps = [{ id: 1, label: "Start" }, { id: 2, label: "Typ obiektu" }, { id: 3, label: "Parametry" }, { id: 4, label: "Wycena i Wyniki" }];
+                let html = '<div class="flex items-center justify-between relative max-w-2xl mx-auto mb-12" data-html2canvas-ignore="true"><div class="absolute left-0 right-0 top-3 h-0.5 bg-brand-border z-0"></div>';
+                const progressWidth = ((currentStep - 1) / (steps.length - 1)) * 100;
+                html += `<div class="absolute left-0 top-3 h-0.5 bg-brand-blue z-0 transition-all duration-500" style="width: ${progressWidth}%;"></div>`;
+                steps.forEach(step => {
+                    const isPast = step.id < currentStep, isCurrent = step.id === currentStep;
+                    let circleClasses = "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold z-10 transition-colors border-2 bg-white " + (isPast ? "border-brand-blue text-brand-blue cursor-pointer hover:bg-blue-50" : (isCurrent ? "border-brand-blue bg-brand-blue text-white ring-4 ring-blue-50" : "border-brand-border text-brand-muted"));
+                    let textClasses = "text-[10px] uppercase font-bold mt-2 text-center absolute top-7 w-20 -ml-7 tracking-wide " + (isPast || isCurrent ? "text-brand-dark" : "text-brand-muted");
+                    html += `<div class="relative flex flex-col items-center"><div class="${circleClasses}" ${isPast ? `onclick="goToStep(${step.id})"` : ""}>${isPast ? '<i data-lucide="check" class="w-3 h-3"></i>' : step.id}</div><span class="${textClasses}">${step.label}</span></div>`;
+                });
+                return html + '</div>';
+            }
+        </script>
+
+        <!-- KROK 2 -->
+        <section id="step-2" class="step-transition py-12">
+            <div class="container mx-auto px-6 max-w-5xl">
+                <div id="stepper-container-2"></div>
+                <div class="text-center mb-10"><h2 class="text-3xl font-extrabold text-brand-dark">Wybierz typ budynku</h2></div>
+                <div class="grid md:grid-cols-3 gap-6 mb-10">
+                    <div id="card-residential" onclick="selectObjectType('residential')" class="selection-card bg-white rounded-xl cursor-pointer overflow-hidden group shadow-sm selected border-brand-blue relative">
+                        <div class="absolute top-4 right-4 w-6 h-6 rounded-full border-2 border-brand-blue bg-brand-blue z-20 flex items-center justify-center icon-check"><i data-lucide="check" class="w-3.5 h-3.5 text-white"></i></div>
+                        <div class="h-40 relative overflow-hidden"><img src="https://images.unsplash.com/photo-1512917774080-9991f1c4c750?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Jednorodzinne" class="w-full h-full object-cover"></div>
+                        <div class="p-5 text-center"><h3 class="text-sm font-bold text-brand-dark mb-1">Budynek jednorodzinny</h3></div>
+                    </div>
+                    
+                    <div id="card-multi" onclick="selectObjectType('multi')" class="selection-card bg-white rounded-xl cursor-pointer overflow-hidden group shadow-sm relative">
+                        <div class="absolute top-4 right-4 w-6 h-6 rounded-full border-2 border-brand-border bg-white z-20 flex items-center justify-center icon-check"><i data-lucide="check" class="w-3.5 h-3.5 text-white opacity-0 transition-opacity"></i></div>
+                        <div class="h-40 relative overflow-hidden"><img src="https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Wielorodzinne" class="w-full h-full object-cover"></div>
+                        <div class="p-5 text-center"><h3 class="text-sm font-bold text-brand-dark mb-1">Budynek wielorodzinny</h3></div>
+                    </div>
+
+                    <div id="card-commercial" onclick="selectObjectType('commercial')" class="selection-card bg-white rounded-xl cursor-pointer overflow-hidden group shadow-sm relative">
+                        <div class="absolute top-4 right-4 w-6 h-6 rounded-full border-2 border-brand-border bg-white z-20 flex items-center justify-center icon-check"><i data-lucide="check" class="w-3.5 h-3.5 text-white opacity-0 transition-opacity"></i></div>
+                        <div class="h-40 relative overflow-hidden"><img src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Komercyjne" class="w-full h-full object-cover"></div>
+                        <div class="p-5 text-center"><h3 class="text-sm font-bold text-brand-dark mb-1">Budynek niemieszkaniowy</h3></div>
+                    </div>
+                </div>
+                <div class="flex justify-end pt-4"><button onclick="goToStep(3)" class="bg-holcim-blue hover:bg-blue-900 text-white font-bold py-3.5 px-8 rounded-lg transition-all flex items-center gap-2">Przejdź dalej <i data-lucide="arrow-right" class="w-4 h-4"></i></button></div>
+            </div>
+        </section>
+
+        <!-- KROK 3 -->
+        <section id="step-3" class="step-transition py-12">
+            <div class="container mx-auto px-4 max-w-6xl">
+                <div id="stepper-container-3"></div>
+                <div class="bg-white rounded-xl shadow-card border border-brand-border overflow-hidden">
+                    <div class="bg-slate-50 p-6 border-b border-brand-border"><h2 class="text-xl font-extrabold text-brand-dark">Krok 3: Parametry budynku</h2></div>
+                    <div class="grid lg:grid-cols-12 gap-0">
+                        <div class="lg:col-span-5 p-6 border-r border-brand-border space-y-5">
+                            <div class="flex gap-4 items-end">
+                                <div class="w-1/2">
+                                    <label class="block text-[10px] font-bold text-brand-muted mb-1.5 uppercase">Powierzchnia użytkowa [m²]</label>
+                                    <input type="text" id="b-area" value="150" class="w-full px-3 py-2 border border-brand-border rounded font-bold" onfocus="unfmtInp(this)" onblur="fmtInp(this)" onchange="updateDynamicHouse()">
+                                </div>
+                                <div class="w-1/2">
+                                    <label class="block text-[10px] font-bold text-brand-muted mb-1.5 uppercase">Konstrukcja bryły</label>
+                                    <select id="b-comp" class="w-full px-3 py-2 border border-brand-border rounded font-bold text-sm" onchange="updateDynamicHouse()">
+                                        <option value="prosta">Prosta</option>
+                                        <option value="skomplikowana">Skomplikowana</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-[10px] font-bold text-brand-muted mb-2 uppercase">Typ budynku</label>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <button class="param-btn active p-2 rounded flex flex-col items-center justify-center gap-1" data-group="type" data-val="parterowy" onclick="setParam('type', 'parterowy')"><i data-lucide="home" class="w-5 h-5"></i><span class="text-[10px] font-bold">Parterowy</span></button>
+                                    <button class="param-btn p-2 rounded flex flex-col items-center justify-center gap-1" data-group="type" data-val="poddasze" onclick="setParam('type', 'poddasze')"><i data-lucide="home" class="w-5 h-5"></i><span class="text-[10px] font-bold">Z poddaszem</span></button>
+                                    <button class="param-btn p-2 rounded flex flex-col items-center justify-center gap-1" data-group="type" data-val="pietrowy" onclick="setParam('type', 'pietrowy')"><i data-lucide="building" class="w-5 h-5"></i><span class="text-[10px] font-bold">Piętrowy</span></button>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-[10px] font-bold text-brand-muted mb-2 uppercase">Rodzaj dachu</label>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <button class="param-btn active p-2 rounded flex flex-col items-center justify-center gap-1" data-group="roof" data-val="dwuspadowy" onclick="setParam('roof', 'dwuspadowy')"><i data-lucide="triangle" class="w-5 h-5"></i><span class="text-[10px] font-bold">Dwuspadowy</span></button>
+                                    <button class="param-btn p-2 rounded flex flex-col items-center justify-center gap-1" data-group="roof" data-val="kopertowy" onclick="setParam('roof', 'kopertowy')"><i data-lucide="tent" class="w-5 h-5"></i><span class="text-[10px] font-bold">Kopertowy</span></button>
+                                    <button class="param-btn p-2 rounded flex flex-col items-center justify-center gap-1" data-group="roof" data-val="plaski" onclick="setParam('roof', 'plaski')"><i data-lucide="square" class="w-5 h-5"></i><span class="text-[10px] font-bold">Płaski</span></button>
+                                </div>
+                            </div>
+
+                            <div class="flex gap-4 items-end">
+                                <div class="w-1/2">
+                                    <label class="block text-[10px] font-bold text-brand-muted mb-2 uppercase">Wentylacja</label>
+                                    <div class="grid grid-cols-2 gap-1.5">
+                                        <button class="param-btn active p-1.5 rounded flex flex-col items-center justify-center gap-1" data-group="vent" data-val="grawitacyjna" onclick="setParam('vent', 'grawitacyjna')"><i data-lucide="wind" class="w-4 h-4 mb-0.5"></i><span class="text-[9px] font-bold leading-none text-center">Grawitacja</span></button>
+                                        <button class="param-btn p-1.5 rounded flex flex-col items-center justify-center gap-1" data-group="vent" data-val="rekuperacja" onclick="setParam('vent', 'rekuperacja')"><i data-lucide="air-vent" class="w-4 h-4 mb-0.5"></i><span class="text-[9px] font-bold leading-none text-center">Z rekuperacją</span></button>
+                                    </div>
+                                </div>
+                                <div class="w-1/2">
+                                    <label class="block text-[10px] font-bold text-brand-muted mb-2 uppercase">Fotowoltaika</label>
+                                    <div class="grid grid-cols-2 gap-1.5">
+                                        <button class="param-btn active p-1.5 rounded flex flex-col items-center justify-center gap-1" data-group="pv" data-val="brak" onclick="setParam('pv', 'brak')"><i data-lucide="ban" class="w-4 h-4 mb-0.5"></i><span class="text-[9px] font-bold leading-none text-center">Brak PV</span></button>
+                                        <button class="param-btn p-1.5 rounded flex flex-col items-center justify-center gap-1" data-group="pv" data-val="tak" onclick="setParam('pv', 'tak')"><i data-lucide="sun" class="w-4 h-4 mb-0.5"></i><span class="text-[9px] font-bold leading-none text-center">Instalacja PV</span></button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-[10px] font-bold text-brand-muted mb-2 uppercase">Główne źródło ciepła</label>
+                                <div class="grid grid-cols-5 gap-1">
+                                    <button class="param-btn active p-1.5 rounded flex flex-col items-center justify-center" title="Pompa Ciepła" data-group="heat" data-val="pompa" onclick="setParam('heat', 'pompa')"><i data-lucide="heater" class="w-4 h-4 mb-1"></i><span class="text-[8px] font-bold">Pompa</span></button>
+                                    <button class="param-btn p-1.5 rounded flex flex-col items-center justify-center" title="Gaz ziemny" data-group="heat" data-val="gaz" onclick="setParam('heat', 'gaz')"><i data-lucide="flame" class="w-4 h-4 mb-1"></i><span class="text-[8px] font-bold">Gaz</span></button>
+                                    <button class="param-btn p-1.5 rounded flex flex-col items-center justify-center" title="Energia elektryczna" data-group="heat" data-val="prad" onclick="setParam('heat', 'prad')"><i data-lucide="zap" class="w-4 h-4 mb-1"></i><span class="text-[8px] font-bold">Prąd</span></button>
+                                    <button class="param-btn p-1.5 rounded flex flex-col items-center justify-center" title="Biomasa / Pellet" data-group="heat" data-val="biomasa" onclick="setParam('heat', 'biomasa')"><i data-lucide="leaf" class="w-4 h-4 mb-1"></i><span class="text-[8px] font-bold">Biomasa</span></button>
+                                    <button class="param-btn p-1.5 rounded flex flex-col items-center justify-center text-slate-500" title="Węgiel" data-group="heat" data-val="wegiel" onclick="setParam('heat', 'wegiel')"><i data-lucide="box" class="w-4 h-4 mb-1"></i><span class="text-[8px] font-bold">Węgiel</span></button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="lg:col-span-7 p-6 space-y-6 bg-slate-50 flex flex-col justify-center">
+                            <div class="flex gap-6 items-center">
+                                <div class="w-1/3 flex justify-center">
+                                    <div class="house-container" id="visual-house-s3" style="transform: scale(0.85); transform-origin: center;">
+                                        <div class="h-roof" id="v-roof-s3"></div>
+                                        <div class="h-body" id="v-body-s3">
+                                            <div class="h-partition-line" id="v-partition-s3"><div class="p-line" style="left: 25%"></div><div class="p-line" style="left: 75%"></div></div>
+                                            <div class="h-ceiling-line" id="v-ceiling-s3"></div>
+                                            <div class="h-core-line" id="v-core-s3"></div>
+                                            <div class="h-window" id="v-win1-s3"></div><div class="h-window-2" id="v-win2-s3"></div>
+                                            <div class="h-window-3" id="v-win3-s3"></div><div class="h-window-4" id="v-win4-s3"></div>
+                                            <div class="h-door" id="v-door-s3"></div>
+                                        </div>
+                                        <div class="h-foundation"></div>
+                                    </div>
+                                </div>
+                                <div class="w-2/3">
+                                    <h3 class="text-sm font-extrabold text-brand-dark uppercase border-b border-brand-border pb-2 mb-3">Szacowany przedmiar (do edycji)</h3>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div class="flex justify-between items-center bg-white p-2 rounded shadow-sm text-xs border border-slate-200"><span class="font-semibold text-brand-muted">Ściany Zew. [m²]</span><input type="text" id="q-sciany_zew" class="w-16 p-1 border rounded text-right font-bold text-brand-blue" onfocus="unfmtInp(this)" onblur="fmtInp(this)" onchange="saveManual()"></div>
+                                        <div class="flex justify-between items-center bg-white p-2 rounded shadow-sm text-xs border border-slate-200"><span class="font-semibold text-brand-muted">Ściany wew. [m²]</span><input type="text" id="q-sciany_wew" class="w-16 p-1 border rounded text-right font-bold text-brand-blue" onfocus="unfmtInp(this)" onblur="fmtInp(this)" onchange="saveManual()"></div>
+                                        <div class="flex justify-between items-center bg-white p-2 rounded shadow-sm text-xs border border-slate-200"><span class="font-semibold text-brand-muted">Ściany działowe [m²]</span><input type="text" id="q-sciany_dzialowe" class="w-16 p-1 border rounded text-right font-bold text-brand-blue" onfocus="unfmtInp(this)" onblur="fmtInp(this)" onchange="saveManual()"></div>
+                                        <div class="flex justify-between items-center bg-white p-2 rounded shadow-sm text-xs border border-slate-200"><span class="font-semibold text-brand-muted">Posadowienie [m²]</span><input type="text" id="q-posadowienie" class="w-16 p-1 border rounded text-right font-bold text-brand-blue" onfocus="unfmtInp(this)" onblur="fmtInp(this)" onchange="saveManual()"></div>
+                                        <div class="flex justify-between items-center bg-white p-2 rounded shadow-sm text-xs border border-slate-200"><span class="font-semibold text-brand-muted">Stropy [m²]</span><input type="text" id="q-stropy" class="w-16 p-1 border rounded text-right font-bold text-brand-blue" onfocus="unfmtInp(this)" onblur="fmtInp(this)" onchange="saveManual()"></div>
+                                        <div class="flex justify-between items-center bg-white p-2 rounded shadow-sm text-xs border border-slate-200"><span class="font-semibold text-brand-muted">Dach [m²]</span><input type="text" id="q-dach" class="w-16 p-1 border rounded text-right font-bold text-brand-blue" onfocus="unfmtInp(this)" onblur="fmtInp(this)" onchange="saveManual()"></div>
+                                        <div class="flex justify-between items-center bg-white p-2 rounded shadow-sm text-xs border border-slate-200"><span class="font-semibold text-brand-muted">Okna [m²]</span><input type="text" id="q-okna" class="w-16 p-1 border rounded text-right font-bold text-brand-blue" onfocus="unfmtInp(this)" onblur="fmtInp(this)" onchange="saveManual()"></div>
+                                        <div class="flex justify-between items-center bg-white p-2 rounded shadow-sm text-xs border border-slate-200"><span class="font-semibold text-brand-muted">Wieńce/Słupy [m³]</span><input type="text" id="q-wience" class="w-16 p-1 border rounded text-right font-bold text-brand-blue" onfocus="unfmtInp(this)" onblur="fmtInpPct(this)" onchange="saveManual()"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-4 border-t border-brand-border flex justify-end">
+                        <button onclick="goToStep(4)" class="bg-holcim-blue hover:bg-blue-900 text-white font-bold py-3 px-8 rounded transition-all shadow-sm flex items-center gap-2">Przejdź do wyceny <i data-lucide="calculator" class="w-4 h-4"></i></button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- KROK 4 -->
+        <section id="step-4" class="step-transition py-12">
+            <div class="container mx-auto px-4 max-w-[1400px]" id="pdf-content">
+                <div id="stepper-container-4"></div>
+
+                <!-- RAPORT NAGŁÓWEK (Tylko w PDF - Strona 1) -->
+                <div class="hidden" id="pdf-header">
+                    <div class="flex justify-between items-end border-b-2 border-brand-blue pb-4 mb-6">
+                        <div>
+                            <h1 class="text-3xl font-black text-brand-dark">Raport Konfiguracji Budynku</h1>
+                            <p class="text-brand-muted mt-1">Wycena i optymalizacja rozwiązań materiałowych Holcim & Xella</p>
+                        </div>
+                        <div class="text-right text-xs">
+                            Data wygenerowania: <span id="pdf-date" class="font-bold"></span>
+                        </div>
+                    </div>
+                    <div class="bg-slate-50 p-4 rounded border border-brand-border mb-6">
+                        <h3 class="text-xs font-bold text-brand-dark uppercase mb-2">Przyjęte założenia dla obiektu</h3>
+                        <div class="grid grid-cols-3 md:grid-cols-6 gap-4 text-sm" id="pdf-assumptions"></div>
+                    </div>
+                    
+                    <div id="pdf-variants-container" class="mb-8">
+                        <h3 class="text-sm font-extrabold text-brand-dark border-b-2 border-brand-border pb-2 mb-4 uppercase">Wybrana konfiguracja materiałowa</h3>
+                        <div id="pdf-variants-list" class="grid grid-cols-2 gap-x-6 gap-y-4"></div>
+                    </div>
+                </div>
+
+                <div id="pdf-page-break" class="hidden" style="page-break-before: always; clear: both;"></div>
+
+                <!-- Action Bar -->
+                <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4" id="action-bar" data-html2canvas-ignore="true">
+                    <div>
+                        <h2 class="text-2xl font-extrabold text-brand-dark tracking-tight">Konfigurator kosztów i technologii</h2>
+                        <p class="text-sm text-brand-muted">Wybierz rozwiązania przegród (oparte o portfolio Holcim & Xella) i poznaj szacowane koszty inwestycyjne.</p>
+                    </div>
+                    <div class="flex gap-3">
+                        <button onclick="exportPDF()" class="bg-white border border-brand-border hover:bg-slate-50 text-brand-dark font-bold py-2.5 px-5 rounded shadow-sm flex items-center gap-2 transition-colors">
+                            <i data-lucide="file-down" class="w-4 h-4"></i> Generuj PDF
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="grid lg:grid-cols-12 gap-8 items-start" id="main-layout-grid">
+                    
+                    <!-- LEWA: KONFIGURATOR PRZEGRÓD -->
+                    <div class="lg:col-span-7 bg-white rounded-xl shadow-card border border-brand-border overflow-hidden flex flex-col" id="config-left-col">
+                        
+                        <div class="bg-slate-900 p-2 overflow-x-auto hide-scrollbar border-b border-slate-700">
+                            <div class="flex gap-1" id="category-list"></div>
+                        </div>
+
+                        <div class="p-5 flex-1 relative">
+                            <div class="flex justify-between items-center mb-5 pb-3 border-b border-brand-border">
+                                <div class="flex items-center gap-4">
+                                    <div class="relative w-[70px] h-[70px] flex items-center justify-center bg-slate-50 rounded border border-slate-200 overflow-hidden shrink-0">
+                                        <div style="transform: scale(0.35); transform-origin: center bottom;" class="absolute bottom-1">
+                                            <div class="house-container" id="visual-house-s4">
+                                                <div class="h-roof" id="v-roof-s4"></div>
+                                                <div class="h-body" id="v-body-s4">
+                                                    <div class="h-partition-line" id="v-partition"><div class="p-line" style="left: 25%"></div><div class="p-line" style="left: 75%"></div></div>
+                                                    <div class="h-ceiling-line" id="v-ceiling"></div>
+                                                    <div class="h-core-line" id="v-core"></div>
+                                                    <div class="h-window" id="v-win1"></div><div class="h-window-2" id="v-win2"></div>
+                                                    <div class="h-window-3" id="v-win3"></div><div class="h-window-4" id="v-win4"></div>
+                                                    <div class="h-door" id="v-door"></div>
+                                                </div>
+                                                <div class="h-foundation" id="v-found-s4"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <h2 class="text-xl font-extrabold text-brand-dark tracking-tight" id="cat-title">Kategoria</h2>
+                                        <p class="text-xs text-brand-muted mt-0.5">Modyfikuj układ i sprawdzaj na bieżąco wpływ na koszt.</p>
+                                    </div>
+                                </div>
+                                <div class="text-right bg-slate-50 px-3 py-1.5 rounded border border-slate-200">
+                                    <span class="text-[9px] font-bold text-brand-muted uppercase block">Ilość w przedmiarze</span>
+                                    <span class="font-black text-brand-blue text-lg leading-none" id="cat-qty">0</span> <span class="text-xs font-bold text-brand-muted" id="cat-unit">m²</span>
+                                </div>
+                            </div>
+                            
+                            <div id="variants-list" class="space-y-3"></div>
+                        </div>
+                    </div>
+
+                    <!-- PRAWA: DASHBOARD (STICKY) -->
+                    <div class="lg:col-span-5 space-y-6 lg:sticky lg:top-24" id="config-right-col">
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <!-- Zapotrzebowanie (EP) -->
+                            <div class="bg-white rounded-xl shadow-card border border-brand-border p-5 relative overflow-hidden flex flex-col justify-center">
+                                <div class="absolute top-0 left-0 w-full h-1 bg-brand-blue"></div>
+                                <div class="flex justify-between items-start mb-2">
+                                    <h3 class="text-[10px] font-extrabold text-brand-muted uppercase leading-snug pr-2">Zapotrzebowanie na energię (EP)</h3>
+                                </div>
+                                <div class="text-3xl font-black text-brand-blue" id="kpi-ep">0</div>
+                                <span class="text-[10px] font-bold text-brand-muted mb-3 block">kWh/(m²·rok)</span>
+                                
+                                <select id="kpi-heat" class="w-full text-xs font-bold p-2 border border-brand-border rounded outline-none bg-slate-50 focus:border-brand-blue" onchange="bState.heat = this.value; tryCalcStats();" data-html2canvas-ignore="true">
+                                    <option value="pompa">Źródło: Pompa Ciepła</option>
+                                    <option value="gaz">Źródło: Gaz Ziemny</option>
+                                    <option value="prad">Źródło: Prąd (Sieć)</option>
+                                    <option value="biomasa">Źródło: Biomasa</option>
+                                    <option value="wegiel">Źródło: Węgiel</option>
+                                </select>
+                                <div class="text-xs font-bold text-brand-dark hidden bg-slate-50 p-2 border rounded" id="kpi-heat-print"></div>
+                            </div>
+
+                            <!-- Całkowity Koszt -->
+                            <div class="bg-slate-800 rounded-xl shadow-card border border-slate-700 p-5 relative overflow-hidden flex flex-col justify-center">
+                                <div class="absolute top-0 left-0 w-full h-1 bg-slate-600"></div>
+                                <div class="flex justify-between items-start mb-2">
+                                    <h3 class="text-[10px] font-extrabold text-slate-400 uppercase leading-snug">Szacowany koszt inwestycji</h3>
+                                </div>
+                                <div class="text-3xl font-black text-white" id="kpi-total-cost">0</div>
+                                <div class="flex gap-3 mt-1">
+                                    <span class="text-[10px] font-bold text-slate-400">Mat: <span class="text-white" id="kpi-cost-mat">0</span> PLN</span>
+                                    <span class="text-[10px] font-bold text-slate-400">Rob: <span class="text-white" id="kpi-cost-lab">0</span> PLN</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-white rounded-xl shadow-sm border border-brand-border p-3 relative flex flex-col">
+                                <div class="absolute top-0 left-0 w-full h-1 bg-brand-blue"></div>
+                                <h3 class="text-[9px] font-extrabold text-brand-muted uppercase leading-tight mb-1">Całkowity koszt za m² PUM</h3>
+                                <div class="text-base font-black text-brand-dark mt-auto whitespace-nowrap" id="kpi-cost-m2">0 <span class="text-[8px] text-brand-muted font-bold">PLN</span></div>
+                            </div>
+
+                            <div class="bg-white rounded-xl shadow-sm border border-brand-border p-3 relative flex flex-col">
+                                <div class="absolute top-0 left-0 w-full h-1 bg-orange-500"></div>
+                                <h3 class="text-[9px] font-extrabold text-brand-muted uppercase leading-tight mb-1">Szacowany roczny koszt ogrzewania</h3>
+                                <div class="text-base font-black text-orange-600 mt-auto whitespace-nowrap" id="kpi-energy-cost">0 <span class="text-[8px] text-brand-muted font-bold">PLN</span></div>
+                            </div>
+                        </div>
+
+                        <!-- WYKRES ROZBICIA KOSZTÓW -->
+                        <div class="bg-white rounded-xl shadow-card border border-brand-border p-5">
+                            <h3 class="text-xs font-extrabold text-brand-dark uppercase mb-4">Struktura kosztów (Materiały + Robocizna)</h3>
+                            <div id="chart-costs-list" class="space-y-3">
+                                <!-- Generowane dynamicznie paski -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        function formatNumberWithSpace(num, decimals) {
+            let parts = Number(num).toFixed(decimals).split('.');
+            parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+            return parts.join(',');
+        }
+        function fmt(num) { return formatNumberWithSpace(num, 0); }
+        function fmtDec(num) { return formatNumberWithSpace(num, 2); }
+        function fmtPct(num) { return formatNumberWithSpace(num, 1); }
+        function pNum(v) { 
+            return parseFloat(String(v).replace(/\s/g, '').replace(/\u00A0/g, '').replace(/\u202f/g, '').replace(',', '.')) || 0; 
+        }
+        
+        function unfmtInp(el) { el.value = pNum(el.value); }
+        function fmtInp(el) { el.value = fmt(pNum(el.value)); }
+        function fmtInpDec(el) { el.value = fmtDec(pNum(el.value)); }
+        function fmtInpPct(el) { el.value = fmtPct(pNum(el.value)); }
+
+        let bState = {
+            group: 'residential', area: 150, type: 'parterowy', roof: 'dwuspadowy', comp: 'prosta', heat: 'pompa', vent: 'grawitacyjna', pv: 'brak',
+            qty: { "q-sciany_zew": 0, "q-sciany_wew": 0, "q-sciany_dzialowe": 0, "q-posadowienie": 0, "q-stropy": 0, "q-dach": 0, "q-okna": 0, "q-wience": 0 },
+            selections: {}, activeCat: 'sciany_zew'
+        };
+
+        const CATS = [
+            { id: "posadowienie", name: "Posadowienie", unitKey: "q-posadowienie", unit: "m²", color: "bg-stone-500", icon: "box" },
+            { id: "sciany_zew", name: "Ściany Zewnętrzne", unitKey: "q-sciany_zew", unit: "m²", color: "bg-brand-blue", icon: "layout" },
+            { id: "sciany_wew", name: "Ściany wewnętrzne", unitKey: "q-sciany_wew", unit: "m²", color: "bg-sky-500", icon: "align-justify" },
+            { id: "sciany_dzialowe", name: "Ściany Działowe", unitKey: "q-sciany_dzialowe", unit: "m²", color: "bg-indigo-400", icon: "columns" },
+            { id: "stropy", name: "Stropy", unitKey: "q-stropy", unit: "m²", color: "bg-slate-500", icon: "layers" },
+            { id: "dach", name: "Dach", unitKey: "q-dach", unit: "m²", color: "bg-red-500", icon: "home" },
+            { id: "okna", name: "Okna", unitKey: "q-okna", unit: "m²", color: "bg-cyan-500", icon: "grid" },
+            { id: "wience", name: "Wieńce/Słupy", unitKey: "q-wience", unit: "m³", color: "bg-gray-600", icon: "database" }
+        ];
+
+        // Koszty w PLN na kWh
+        const HEAT_PARAMS = {
+            'pompa': { epMult: 0.85, price: 0.40 }, // ok. 0.40 zł/kWh użytkową
+            'gaz': { epMult: 1.1, price: 0.35 },
+            'prad': { epMult: 2.5, price: 1.20 },
+            'biomasa': { epMult: 0.2, price: 0.30 },
+            'wegiel': { epMult: 1.1, price: 0.25 }
+        };
+
+        const LC = { c: "bg-orange-600", s: "bg-slate-300", y: "bg-xella-yellow", e: "bg-holcim-green", w: "bg-yellow-600", eps: "bg-blue-100", b: "bg-stone-400", t: "bg-stone-200", w3: "bg-blue-300", pcv: "bg-white", dr: "bg-slate-900", al: "bg-slate-800" };
+
+        const VARS_DB = {
+            "posadowienie": [
+                { id: "f1", name: "Ławy Ecopact + Ściany Silka", tierBadge: "Najtańszy", isDefault: false, costMat: 150, costLab: 160, adv: ["Sprawdzona, tradycyjna metoda posadowienia", "Wysoka wytrzymałość bloków Silka", "Skuteczne ocieplenie od zewnątrz"], layers: [{n:"Ława Ecopact", origT:30, t:30, c:LC.e, l:1.7}, {n:"Ściana Silka", origT:24, t:24, c:LC.s, l:0.6}, {n:"Hydroizolacja Holcim", origT:0.5, t:0.5, c:LC.dr}, {n:"XPS Holcim", origT:15, t:15, c:LC.eps, l:0.035}] },
+                { id: "f2", name: "Płyta Ecopact (zbrojenie stalowe)", tierBadge: "Optymalny", isDefault: true, costMat: 200, costLab: 150, adv: ["Klasyczne zbrojenie stalowe i nośność", "Szybsza realizacja niż ławy fundamentowe", "Ciągła i pewna ochrona przed przemarzaniem"], layers: [{n:"Płyta Ecopact", origT:25, t:25, c:LC.e, l:1.7}, {n:"Hydroizolacja Holcim", origT:0.5, t:0.5, c:LC.dr}, {n:"XPS Holcim", origT:15, t:15, c:LC.eps, l:0.035}] },
+                { id: "f3", name: "Płyta Ecopact (zbrojenie rozpr.)", tierBadge: "Najlepszy", isDefault: false, costMat: 220, costLab: 110, adv: ["Szybkość wbudowania bez układania stali na budowie", "Zbrojenie w masie = zredukowany ślad węglowy", "Ciągła izolacja termiczna pod całą bryłą"], layers: [{n:"Płyta Ecopact", origT:25, t:25, c:LC.e, l:1.7}, {n:"Hydroizolacja Holcim", origT:0.5, t:0.5, c:LC.dr}, {n:"XPS Holcim", origT:20, t:20, c:LC.eps, l:0.035}] }
+            ],
+            "sciany_zew": [
+                { id: "sz1", name: "Ytong Acura Light 24 cm + EPS", tierBadge: "Najtańszy", isDefault: false, costMat: 140, costLab: 140, adv: ["Powszechnie znana i wydajna technologia ocieplenia", "Świetne parametry termiczne całego układu muru", "Łatwość montażu powłok termoizolacyjnych"], layers: [{n:"Tynk zew.", origT:1.5, t:1.5, c:LC.t, l:0.8}, {n:"EPS Holcim", origT:20, t:20, c:LC.eps, l:0.038}, {n:"Ytong Acura", origT:24, t:24, c:LC.y, l:0.11}, {n:"Tynk wew.", origT:1.5, t:1.5, c:LC.t, l:0.8}] },
+                { id: "sz2", name: "Ytong Acura Light 24 cm + Wełna", tierBadge: "Optymalny", isDefault: true, costMat: 180, costLab: 180, adv: ["Bardzo wysoka izolacyjność akustyczna z zewnątrz", "Najwyższa klasa bezpieczeństwa ogniowego", "Oddychająca struktura wielowarstwowej ściany"], layers: [{n:"Tynk zew.", origT:1.5, t:1.5, c:LC.t, l:0.8}, {n:"Wełna Holcim", origT:20, t:20, c:LC.w, l:0.036}, {n:"Ytong Acura", origT:24, t:24, c:LC.y, l:0.11}, {n:"Tynk wew.", origT:1.5, t:1.5, c:LC.t, l:0.8}] },
+                { id: "sz3", name: "Ytong EnergoUltra+", tierBadge: "Najlepszy", isDefault: false, costMat: 250, costLab: 80, adv: ["Ściana jednowarstwowa - całkowity brak sztucznego ocieplenia", "Najszybsze możliwe tempo prac murarskich", "Znakomity i naturalny mikroklimat pomieszczeń"], layers: [{n:"Tynk zew.", origT:1.5, t:1.5, c:LC.t, l:0.8}, {n:"Ytong EnergoUltra+", origT:36.5, t:36.5, c:LC.y, l:0.072}, {n:"Tynk wew.", origT:1.5, t:1.5, c:LC.t, l:0.8}] }
+            ],
+            "sciany_wew": [
+                { id: "sw1", name: "Ytong Acura Light 24 cm", tierBadge: "Najtańszy", isDefault: false, costMat: 90, costLab: 50, adv: ["Wyjątkowo gładka i równa powierzchnia ścian", "Szybka obróbka i bezproblemowe docinanie", "Wysoka dokładność zmniejszająca zużycie tynku"], layers:[{n:"Tynk wew.", origT:1.5, t:1.5, c:LC.t}, {n:"Ytong Acura", origT:24, t:24, c:LC.y}, {n:"Tynk wew.", origT:1.5, t:1.5, c:LC.t}] },
+                { id: "sw2", name: "Silka E24", tierBadge: "Optymalny", isDefault: true, costMat: 110, costLab: 60, adv: ["Niedościgniona, potężna izolacyjność akustyczna", "Bardzo wysoka nośność mechaniczna", "Doskonała akumulacja ciepła latem i zimą"], layers:[{n:"Tynk wew.", origT:1.5, t:1.5, c:LC.t}, {n:"Silka E24", origT:24, t:24, c:LC.s}, {n:"Tynk wew.", origT:1.5, t:1.5, c:LC.t}] },
+                { id: "sw3", name: "Silka Tempo 24", tierBadge: "Najlepszy", isDefault: false, costMat: 125, costLab: 40, adv: ["Wielkoformatowe bloki - błyskawiczne wznoszenie przy użyciu miniżurawia", "Identyczne zalety akustyczne i nośne jak przy Silka E24", "Gigantyczna oszczędność cennego czasu robocizny"], layers:[{n:"Tynk wew.", origT:1.5, t:1.5, c:LC.t}, {n:"Silka Tempo", origT:24, t:24, c:LC.s}, {n:"Tynk wew.", origT:1.5, t:1.5, c:LC.t}] }
+            ],
+            "sciany_dzialowe": [
+                { id: "sd1", name: "Ytong Acura Light 11,5 cm", tierBadge: "Najtańszy", isDefault: false, costMat: 60, costLab: 40, adv: ["Znacznie mniejsze obciążenie stropów dzięki lekkości bloków", "Wyjątkowa łatwość i czystość ręcznego frezowania bruzd", "Bardzo szybki postęp prac murowych"], layers:[{n:"Tynk wew.", origT:1.5, t:1.5, c:LC.t}, {n:"Ytong", origT:11.5, t:11.5, c:LC.y}, {n:"Tynk wew.", origT:1.5, t:1.5, c:LC.t}] },
+                { id: "sd2", name: "Silka 12 cm", tierBadge: "Optymalny", isDefault: true, costMat: 70, costLab: 50, adv: ["Zauważalnie podwyższona izolacyjność akustyczna między pokojami", "Pewne, stabilne i bezpieczne mocowanie najcięższych szafek", "Całkowity brak problemu z odkształceniami czy pęknięciami"], layers:[{n:"Tynk wew.", origT:1.5, t:1.5, c:LC.t}, {n:"Silka", origT:12, t:12, c:LC.s}, {n:"Tynk wew.", origT:1.5, t:1.5, c:LC.t}] },
+                { id: "sd3", name: "Panele Ytong Panel", tierBadge: "Najlepszy", isDefault: false, costMat: 110, costLab: 25, adv: ["Ekstremalnie szybki montaż paneli na pełną wysokość piętra", "Idealnie gładka ściana – wystarczy cienka gładź bez tynkowania", "Znaczne oszczędności na procesach tzw. prac mokrych"], layers:[{n:"Gładź", origT:0.3, t:0.3, c:LC.t}, {n:"Ytong Panel", origT:10, t:10, c:LC.y}, {n:"Gładź", origT:0.3, t:0.3, c:LC.t}] }
+            ],
+            "stropy": [
+                { id: "st1", name: "Gęstożebrowy Ytong", tierBadge: "Najtańszy", isDefault: false, costMat: 180, costLab: 130, adv: ["Możliwość wygodnego montażu ręcznego bez udziału ciężkiego dźwigu", "Wysoka popularność i sprawdzone parametry ukształtowania nośności", "Łatwe i niewidoczne ukrycie domowych instalacji między belkami"], layers:[{n:"Wylewka", origT:5, t:5, c:LC.t, l:1.0}, {n:"EPS Holcim", origT:5, t:5, c:LC.eps, l:0.038}, {n:"Strop Ytong", origT:24, t:24, c:LC.y, l:0.6}] },
+                { id: "st2", name: "Monolityczny Ecopact", tierBadge: "Optymalny", isDefault: true, costMat: 200, costLab: 120, adv: ["Ekologiczna mieszanka Ecopact zmniejszająca ogólny ślad węglowy", "Całkowity brak jakiegokolwiek pękania (klawiszowania) i rys na suficie", "Ogromna swoboda projektowania i kształtowania otworów"], layers:[{n:"Wylewka", origT:5, t:5, c:LC.t, l:1.0}, {n:"EPS Holcim", origT:5, t:5, c:LC.eps, l:0.038}, {n:"Beton Ecopact", origT:20, t:20, c:LC.e, l:1.7}] },
+                { id: "st3", name: "Zbrojone Płyty Ytong", tierBadge: "Najlepszy", isDefault: false, costMat: 260, costLab: 60, adv: ["Całkowity brak wymogu stosowania uciążliwych i drogich szalunków", "Znakomite, natychmiastowe wbudowane parametry izolacyjne", "Pełna nośność stropu bezpośrednio po nałożeniu płyt z dźwigu"], layers:[{n:"Wylewka", origT:5, t:5, c:LC.t, l:1.0}, {n:"EPS Holcim", origT:5, t:5, c:LC.eps, l:0.038}, {n:"Płyta Ytong", origT:20, t:20, c:LC.y, l:0.16}] }
+            ],
+            "dach": [
+                { id: "d1", name: "Więźba + EPS Holcim (Skośny)", type: "skosny", tierBadge: "Najtańszy", isDefault: false, costMat: 160, costLab: 130, adv: ["Bardzo ekonomiczny koszt wzniesienia stabilnego poszycia", "Niewielka waga całkowita, która nie przeciąża murów", "Dobra szybkość montażu bloków EPS bez mostków termicznych"], layers:[{n:"Dachówka", origT:5, t:5, c:LC.c}, {n:"EPS Holcim", origT:25, t:25, c:LC.eps, l:0.038}, {n:"Płyta G-K", origT:1.2, t:1.2, c:LC.pcv}] },
+                { id: "d2", name: "Więźba + Wełna Holcim (Skośny)", type: "skosny", tierBadge: "Optymalny", isDefault: true, costMat: 200, costLab: 150, adv: ["Idealnie oddychająca i zarazem mocno izolująca Wełna Holcim", "Ponadczasowy i doceniany wygląd konstrukcji zadaszenia", "Skuteczne odprowadzanie nadmiaru wilgoci z samego poddasza"], layers:[{n:"Dachówka", origT:5, t:5, c:LC.c}, {n:"Wełna Holcim", origT:25, t:25, c:LC.w, l:0.036}, {n:"Płyta G-K", origT:1.2, t:1.2, c:LC.pcv}] },
+                { id: "d3", name: "Stropodach Ecopact + Wełna", type: "plaski", tierBadge: "Najlepszy", isDefault: false, costMat: 260, costLab: 180, adv: ["Nowoczesna, zwarta forma z praktyczną opcją utworzenia tarasu", "Najwyższa fizyczna ochrona przed nagrzewaniem domu w lecie", "Bardzo stabilne rozwiązanie, całkowicie eliminujące potencjalne przecieki"], layers:[{n:"Hydroizolacja", origT:1, t:1, c:LC.dr}, {n:"Wełna Holcim", origT:25, t:25, c:LC.w, l:0.036}, {n:"Beton Ecopact", origT:20, t:20, c:LC.e, l:1.7}] }
+            ],
+            "okna": [
+                { id: "o1", name: "Okna PCV (3-szybowe standard)", tierBadge: "Najtańszy", isDefault: false, costMat: 600, costLab: 150, customU: 0.95, adv: ["Niezwykle korzystna i atrakcyjna rynkowa cena zakupu", "Bardzo prosty montaż i lekka konstrukcja ram profili", "Zadowalająca skuteczność dla klasycznych wymagań"] },
+                { id: "o2", name: "Okna PCV Premium", tierBadge: "Optymalny", isDefault: true, costMat: 850, costLab: 220, customU: 0.85, adv: ["Zdecydowanie najlepszy stosunek długowiecznej jakości do ceny", "Ciepły montaż gwarantujący minimalizację start cieplnych", "Brak konieczności skomplikowanej czy regularnej konserwacji"] },
+                { id: "o3", name: "Okna Aluminiowe", tierBadge: "Najlepszy", isDefault: false, costMat: 1450, costLab: 350, customU: 0.80, adv: ["Zjawiskowy, nowoczesny i niezwykle smukły design fasady", "Potężna możliwość tworzenia przeszkleń o ogromnych wymiarach", "Absolutnie niezrównana trwałość, sztywność i odporność na wiatr"] }
+            ],
+            "wience": [
+                { id: "w1", name: "Beton Standardowy Holcim", tierBadge: "Najtańszy", isDefault: false, costMat: 300, costLab: 180, adv: ["Powszechnie i łatwo dostępny niemal w każdej betoniarni lokalnej", "Gwarancja bezpiecznej nośności i jakości według normy", "Wysoce uniwersalne i tanie rozwiązanie dla każdego inwestora"], layers:[{n:"Stal zbrojeniowa", origT:2, t:2, c:LC.dr}, {n:"Beton Standard", origT:24, t:24, c:LC.b}] },
+                { id: "w2", name: "Beton Ecopact", tierBadge: "Optymalny", isDefault: true, costMat: 350, costLab: 200, adv: ["Innowacyjna mieszanka mocno obniżająca emisję śladu węglowego", "Solidne i niezawodnie szczelne spięcie całego ustroju nośnego", "Zauważalnie zwiększona szczelność i urabialność formy"], layers:[{n:"Stal zbrojeniowa", origT:2, t:2, c:LC.dr}, {n:"Beton Ecopact", origT:24, t:24, c:LC.e}] },
+                { id: "w3", name: "Beton Ecopact Premium", tierBadge: "Najlepszy", isDefault: false, costMat: 420, costLab: 200, adv: ["Wysoce podwyższona klasa obciążeniowa i wytrzymałościowa", "Projektowo zoptymalizowany by pozwalać na mniejsze przekroje słupów", "Zminimalizowana skurczliwość podczas procesu wiązania i dojrzewania"], layers:[{n:"Stal zbrojeniowa", origT:2, t:2, c:LC.dr}, {n:"Ecopact Premium", origT:24, t:24, c:LC.e}] }
+            ]
+        };
+
+        function getVars(catId) {
+            if (catId === 'dach') {
+                const rType = bState.roof === 'plaski' ? 'plaski' : 'skosny';
+                return VARS_DB.dach.filter(v => v.type === rType || !v.type);
+            }
+            return VARS_DB[catId] || [];
+        }
+
+        window.onload = () => { 
+            try { if(typeof lucide !== 'undefined') lucide.createIcons(); } catch(e){} 
+            const initArea = document.getElementById('b-area');
+            if(initArea) initArea.value = fmt(150);
+            goToStep(1); 
+        };
+
+        function goToStep(s) {
+            document.querySelectorAll('.step-transition').forEach(el => el.classList.remove('active'));
+            const stepEl = document.getElementById('step-'+s);
+            if(stepEl) stepEl.classList.add('active');
+            
+            if(s>1) {
+                const sC = document.getElementById('stepper-container-'+s);
+                if(sC) sC.innerHTML = renderStepper(s);
+            }
+            if(s===3) updateDynamicHouse();
+            if(s===4) initStep4(); 
+            window.scrollTo(0,0);
+            try { if(typeof lucide !== 'undefined') lucide.createIcons(); } catch(e){} 
+        }
+
+        function selectObjectType(type) {
+            document.querySelectorAll('.selection-card').forEach(el => {
+                el.classList.remove('selected', 'border-brand-blue');
+                el.querySelector('.icon-check i').classList.replace('opacity-100', 'opacity-0');
+                el.querySelector('.icon-check').classList.replace('bg-brand-blue', 'bg-white');
+                el.querySelector('.icon-check').classList.replace('border-brand-border', 'border-brand-blue');
+            });
+            const card = document.getElementById(`card-${type}`);
+            if(card) {
+                card.classList.add('selected', 'border-brand-blue');
+                card.querySelector('.icon-check i').classList.replace('opacity-0', 'opacity-100');
+                card.querySelector('.icon-check').classList.replace('bg-white', 'bg-brand-blue');
+                card.querySelector('.icon-check').classList.replace('border-brand-border', 'border-brand-blue');
+            }
+            
+            bState.group = type;
+            const bAreaInp = document.getElementById('b-area');
+            if(type === 'commercial') {
+                bAreaInp.value = fmt(600);
+                setParam('type', 'pietrowy');
+                setParam('roof', 'plaski');
+            } else if(type === 'multi') {
+                bAreaInp.value = fmt(1200);
+                setParam('type', 'pietrowy');
+                setParam('roof', 'plaski');
+            } else {
+                bAreaInp.value = fmt(150);
+                setParam('type', 'parterowy');
+                setParam('roof', 'dwuspadowy');
+            }
+        }
+
+        function setParam(group, val) {
+            bState[group] = val;
+            document.querySelectorAll(`.param-btn[data-group="${group}"]`).forEach(b => b.classList.remove('active'));
+            const btn = document.querySelector(`.param-btn[data-group="${group}"][data-val="${val}"]`);
+            if(btn) btn.classList.add('active');
+            updateDynamicHouse();
+        }
+
+        function updateDynamicHouse() {
+            bState.area = pNum(document.getElementById('b-area').value) || 150;
+            bState.comp = document.getElementById('b-comp').value;
+            let pz = bState.area; let fl = 1;
+            if(bState.type === 'poddasze') { pz = bState.area/1.5; fl=1.5; }
+            if(bState.type === 'pietrowy') { pz = bState.area/2; fl=2; }
+            
+            let wExt = 4*Math.sqrt(pz)*3*fl * (bState.comp === 'skomplikowana' ? 1.2 : 1.0);
+            let rf = pz * (bState.roof==='dwuspadowy'?1.4 : bState.roof==='kopertowy'?1.5 : 1.0);
+
+            document.getElementById('q-sciany_zew').value = fmt(wExt);
+            document.getElementById('q-sciany_wew').value = fmt(bState.area*0.5);
+            document.getElementById('q-sciany_dzialowe').value = fmt(bState.area*0.6);
+            document.getElementById('q-posadowienie').value = fmt(pz);
+            document.getElementById('q-stropy').value = fmt(fl>1 ? pz : 0);
+            document.getElementById('q-dach').value = fmt(rf);
+            document.getElementById('q-okna').value = fmt(bState.area*0.18);
+            document.getElementById('q-wience').value = fmtPct(bState.area*0.05);
+            
+            saveManual();
+
+            ['s3','s4'].forEach(sID => {
+                const r = document.getElementById('v-roof-'+sID);
+                const b = document.getElementById('v-body-'+sID);
+                if(r) r.className = `h-roof ${bState.roof}`;
+                if(b) b.className = `h-body ${bState.type}`;
+            });
+        }
+
+        function saveManual() { 
+            CATS.forEach(c => { bState.qty[c.unitKey] = pNum(document.getElementById(c.unitKey).value) || 0; }); 
+            tryCalcStats();
+        }
+
+        function initStep4() {
+            bState.expandedVar = null; 
+            optimize(); 
+        }
+
+        function optimize() {
+            try {
+                CATS.forEach(c => { 
+                    const vars = getVars(c.id);
+                    if(!vars || vars.length === 0) return;
+                    const defaults = vars.filter(v=>v.isDefault);
+                    bState.selections[c.id] = defaults.length > 0 ? defaults[0].id : vars[0].id; 
+                    
+                    vars.forEach(v => {
+                        if(v.layers) v.layers.forEach(l => l.t = l.origT);
+                        if(c.id === 'okna') v.activeCustomU = v.customU;
+                    });
+                });
+                bState.expandedVar = null;
+                bState.heat = 'pompa';
+                const hp = document.getElementById('kpi-heat');
+                if(hp) hp.value = 'pompa';
+                
+                changeCategory(bState.activeCat || 'sciany_zew');
+            } catch (e) {
+                console.error("Błąd inicjalizacji: ", e);
+            }
+        }
+
+        function changeCategory(catId) {
+            bState.expandedVar = null; 
+            bState.activeCat = catId; 
+            renderCatMenu();
+            selectCat(catId);
+        }
+
+        function getUValue(catId, varId) {
+            const vars = getVars(catId);
+            if(!vars) return null;
+            const v = vars.find(v=>v.id===varId);
+            if(!v) return null;
+            if(catId === 'okna') return v.activeCustomU || v.customU;
+            if(!v.layers) return null;
+            
+            let rValue = 0.17; 
+            let hasLambda = false;
+            v.layers.forEach(l => {
+                if(l.l) { 
+                    const thickM = Math.max(0.001, (parseFloat(l.t) || 0)/100); 
+                    rValue += thickM / l.l; 
+                    hasLambda = true; 
+                }
+            });
+            return hasLambda ? (1/rValue).toFixed(2) : null;
+        }
+
+        function renderCatMenu() {
+            try {
+                const list = document.getElementById('category-list'); 
+                if(!list) return;
+                list.innerHTML = '';
+                
+                CATS.forEach(c => {
+                    const isAct = bState.activeCat === c.id;
+                    list.innerHTML += `
+                        <button onclick="changeCategory('${c.id}')" class="flex-shrink-0 md:flex-shrink px-4 py-2 text-center transition flex flex-col items-center justify-center min-w-[90px] border-b-4 ${isAct?'bg-slate-800 border-brand-blue':'hover:bg-slate-800 border-transparent'}">
+                            <i data-lucide="${c.icon}" class="w-4 h-4 mb-1 ${isAct?'text-brand-blue':'text-slate-400'}"></i>
+                            <div class="font-bold text-[10px] uppercase tracking-wide ${isAct?'text-white':'text-slate-400'}">${c.name}</div>
+                        </button>`;
+                });
+                try { if(typeof lucide !== 'undefined') lucide.createIcons(); } catch(e){}
+                tryCalcStats();
+                highlightHousePart(bState.activeCat);
+            } catch (e) { console.error("Błąd menu: ", e); }
+        }
+
+        function highlightHousePart(catId) {
+            ['v-roof-s4','v-body-s4','v-win1','v-win2','v-win3','v-win4','v-found-s4','v-ceiling','v-core','v-partition','v-door'].forEach(id => {
+                const el = document.getElementById(id);
+                if(el) el.classList.remove('hl-roof', 'hl-body', 'hl-win', 'hl-found', 'hl-ceiling', 'hl-core', 'hl-partition');
+            });
+            
+            if(catId === 'dach') document.getElementById('v-roof-s4')?.classList.add('hl-roof');
+            if(catId === 'sciany_zew') document.getElementById('v-body-s4')?.classList.add('hl-body');
+            if(catId === 'posadowienie') document.getElementById('v-found-s4')?.classList.add('hl-found');
+            if(catId === 'okna') { 
+                document.getElementById('v-win1')?.classList.add('hl-win'); 
+                document.getElementById('v-win2')?.classList.add('hl-win'); 
+                document.getElementById('v-win3')?.classList.add('hl-win'); 
+                document.getElementById('v-win4')?.classList.add('hl-win'); 
+            }
+            if(catId === 'stropy') document.getElementById('v-ceiling')?.classList.add('hl-ceiling');
+            if(catId === 'sciany_wew') document.getElementById('v-core')?.classList.add('hl-core');
+            if(catId === 'sciany_dzialowe') document.getElementById('v-partition')?.classList.add('hl-partition');
+        }
+
+        function selectCat(catId) {
+            try {
+                const cat = CATS.find(c => c.id === catId);
+                if(!cat) return;
+                
+                const catTitleEl = document.getElementById('cat-title');
+                if(catTitleEl) catTitleEl.innerText = cat.name;
+                
+                const qty = parseFloat(bState.qty[cat.unitKey]) || 0;
+                const catQtyEl = document.getElementById('cat-qty');
+                if(catQtyEl) catQtyEl.innerText = fmt(qty); 
+                
+                const catUnitEl = document.getElementById('cat-unit');
+                if(catUnitEl) catUnitEl.innerText = cat.unit;
+                
+                const list = document.getElementById('variants-list'); 
+                if(!list) return;
+                list.innerHTML = '';
+                
+                const vars = getVars(catId);
+                if(!vars || vars.length === 0) return;
+                
+                let maxCostAmount = 0;
+                vars.forEach(v => {
+                    // dynamiczny koszt na podstawie modyfikacji grubości
+                    let thicknessMod = 1;
+                    if(v.layers) {
+                        let origT = 0, currT = 0;
+                        v.layers.forEach(l => {
+                            origT += (parseFloat(l.origT) || 0);
+                            currT += (parseFloat(l.t) || 0);
+                        });
+                        if (origT > 0) thicknessMod = currT / origT;
+                    }
+                    const t = ((v.costMat || 0) * thicknessMod + (v.costLab || 0)) * qty;
+                    if(t > maxCostAmount) maxCostAmount = t;
+                });
+
+                const uZew = parseFloat(getUValue('sciany_zew', bState.selections.sciany_zew)) || 0.20;
+                const uDach = parseFloat(getUValue('dach', bState.selections.dach)) || 0.15;
+                const uOkna = parseFloat(getUValue('okna', bState.selections.okna)) || 0.90;
+                const uFund = parseFloat(getUValue('posadowienie', bState.selections.posadowienie)) || 0.25;
+                
+                const aZew = parseFloat(bState.qty['q-sciany_zew']) || 0;
+                const aOkna = parseFloat(bState.qty['q-okna']) || 0;
+                const aDach = parseFloat(bState.qty['q-dach']) || 0;
+                const aFund = parseFloat(bState.qty['q-posadowienie']) || 0;
+                const area = parseFloat(bState.area) || 150;
+
+                const htZew = uZew * aZew;
+                const htDach = uDach * aDach;
+                const htOkna = uOkna * aOkna;
+                const htFund = uFund * aFund * 0.5; 
+                
+                let ventEfficiency = bState.vent === 'rekuperacja' ? 0.25 : 1.0;
+                const htVent = area * 2.5 * 0.33 * 0.5 * ventEfficiency; 
+                
+                const isThermal = ['sciany_zew', 'dach', 'okna', 'posadowienie'].includes(catId);
+
+                vars.forEach(v => {
+                    const isExpanded = bState.expandedVar === v.id;
+                    const isSel = bState.selections[catId] === v.id;
+                    
+                    let thicknessMod = 1;
+                    if(v.layers) {
+                        let origT = 0, currT = 0;
+                        v.layers.forEach(l => {
+                            origT += (parseFloat(l.origT) || 0);
+                            currT += (parseFloat(l.t) || 0);
+                        });
+                        if(origT > 0) thicknessMod = currT / origT;
+                    }
+
+                    const dynCostMat = (v.costMat || 0) * thicknessMod;
+                    const dynCostLab = (v.costLab || 0);
+                    const vCostTotal = (dynCostMat + dynCostLab) * qty;
+
+                    const barW = maxCostAmount > 0 ? Math.max(0, (vCostTotal/maxCostAmount)*100) : 0;
+                    const currentU = getUValue(catId, v.id);
+
+                    let energyShare = 0;
+                    if (isThermal && currentU !== null) {
+                        let qtyMod = qty;
+                        if(catId === 'posadowienie') qtyMod = qty * 0.5; 
+
+                        let myHT = parseFloat(currentU) * qtyMod;
+                        let otherHT = htZew + htDach + htOkna + htFund + htVent;
+                        if (catId === 'sciany_zew') otherHT -= htZew;
+                        if (catId === 'dach') otherHT -= htDach;
+                        if (catId === 'okna') otherHT -= htOkna;
+                        if (catId === 'posadowienie') otherHT -= htFund;
+                        let totalHT = otherHT + myHT;
+                        energyShare = totalHT > 0 ? (myHT / totalHT) * 100 : 0;
+                    }
+
+                    let layersHtml = ''; let vizHtml = '';
+                    
+                    if(catId === 'okna') {
+                        const actU = v.activeCustomU || v.customU || 0.9;
+                        layersHtml = `
+                            <div class="flex justify-between items-center text-xs py-2 border-b border-slate-100">
+                                <span class="font-bold text-brand-dark">Współczynnik przenikania U:</span>
+                                <span><input type="text" value="${fmtDec(actU)}" onfocus="unfmtInp(this)" onblur="fmtInpDec(this)" onchange="updateWindowU('${catId}', '${v.id}', this.value)" class="w-16 px-1 border rounded text-right font-bold bg-white text-brand-blue shadow-inner focus:ring-2 focus:ring-blue-500"> W/(m²K)</span>
+                            </div>
+                        `;
+                    } else if (v.layers && v.layers.length > 0) {
+                        let totalT = 0;
+                        v.layers.forEach(l => { totalT += (parseFloat(l.t) || 0); });
+                        if(totalT === 0) totalT = 1;
+
+                        layersHtml = v.layers.map((l, lIdx) => {
+                            const valT = l.t !== undefined ? l.t : 0;
+                            return `
+                            <div id="row-${v.id}-${lIdx}" class="flex justify-between items-center text-xs py-1.5 border-b border-slate-100 px-1 transition-colors" 
+                                 onmouseenter="hlL('${v.id}', ${lIdx}, true)" onmouseleave="hlL('${v.id}', ${lIdx}, false)">
+                                <span class="flex items-center gap-2"><div class="w-2.5 h-2.5 rounded-sm ${l.c} border border-black/10"></div> ${l.n}</span>
+                                <span><input type="text" value="${fmtPct(valT)}" onfocus="unfmtInp(this); hlL('${v.id}', ${lIdx}, true)" onblur="fmtInpPct(this); hlL('${v.id}', ${lIdx}, false)" onchange="updateLayer('${catId}', '${v.id}', ${lIdx}, this.value)" class="w-16 px-1 border border-slate-300 rounded text-right font-bold bg-white text-brand-blue shadow-inner transition-all focus:ring-2 focus:ring-blue-500 focus:bg-blue-50"> cm</span>
+                            </div>
+                        `}).join('');
+
+                        vizHtml = v.layers.map((l, lIdx) => {
+                            const valT = l.t !== undefined ? l.t : 0;
+                            const hPct = (valT / totalT) * 100;
+                            return `<div id="viz-${v.id}-${lIdx}" class="layer-vis flex items-center justify-center ${l.c}" style="height: ${Math.max(5, hPct)}%;"><span class="text-[8px] font-bold mix-blend-difference text-white/50">${fmtPct(valT)}</span></div>`;
+                        }).join('');
+                    }
+
+                    const advs = (v.adv && v.adv.length > 0) ? v.adv : ["Wysoka jakość", "Sprawdzone rozwiązanie", "Zoptymalizowany proces"];
+
+                    let badgeColor = v.tierBadge === 'Najlepszy' ? 'bg-holcim-green text-green-900' :
+                                     v.tierBadge === 'Optymalny' ? 'bg-brand-blue text-white' :
+                                     'bg-slate-200 text-slate-700';
+
+                    list.innerHTML += `
+                        <div class="wall-row bg-white border border-brand-border rounded shadow-sm mb-2 ${isExpanded?'expanded':''}">
+                            <div class="px-4 py-3 flex justify-between items-center gap-4 cursor-pointer" onclick="toggleVariant('${catId}','${v.id}')">
+                                <div class="flex items-center gap-3 w-1/2">
+                                    <div class="w-5 h-5 rounded-full border-2 ${isSel?'border-brand-blue bg-brand-blue':'border-brand-border'} flex items-center justify-center transition flex-shrink-0"><i data-lucide="check" class="w-3 h-3 text-white ${isSel?'opacity-100':'opacity-0'}"></i></div>
+                                    <div>
+                                        <span class="font-bold text-sm leading-tight inline-flex items-center gap-2 ${isSel?'text-brand-blue':'text-brand-dark'}">
+                                            ${v.name}
+                                            ${v.tierBadge ? `<span class="text-[9px] ${badgeColor} px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">${v.tierBadge}</span>` : ''}
+                                        </span>
+                                        ${v.isDefault?'<span class="text-[9px] bg-brand-blue/10 text-brand-blue px-1.5 py-0.5 rounded font-bold uppercase mt-1 inline-block tracking-wider">Wybór rekomendowany</span>':''}
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3 w-1/2">
+                                    <div class="flex-grow h-1.5 bg-slate-100 rounded-full overflow-hidden relative"><div class="absolute h-full ${cat.color} transition-all" style="width:${barW}%"></div></div>
+                                    <div class="w-24 text-right flex-shrink-0"><span class="font-black text-sm text-brand-dark">${fmt(vCostTotal)}</span> <span class="text-[9px] block text-brand-muted font-bold">PLN</span></div>
+                                    <i data-lucide="chevron-down" class="w-4 h-4 text-brand-muted transition-transform ${isExpanded?'rotate-180 text-brand-blue':''}"></i>
+                                </div>
+                            </div>
+                            
+                            <div class="modules-breakdown bg-slate-50 border-t border-brand-border">
+                                <div class="grid md:grid-cols-2 gap-6">
+                                    <div>
+                                        <div class="flex justify-between items-center mb-2">
+                                            <h4 class="text-xs font-extrabold uppercase text-brand-dark">Budowa rozwiązania</h4>
+                                            ${currentU ? `<span class="text-[10px] bg-brand-dark text-white px-2 py-0.5 rounded font-bold tracking-wide">U = ${fmtDec(currentU)} W/(m²K)</span>` : ''}
+                                        </div>
+                                        <div class="flex gap-4">
+                                            ${vizHtml ? `<div class="w-20 h-32 flex flex-col border border-brand-border rounded overflow-hidden bg-white shadow-sm flex-shrink-0 relative">${vizHtml}</div>` : ''}
+                                            <div class="flex-grow bg-white p-3 rounded border border-slate-200 shadow-sm relative">
+                                                ${layersHtml || '<span class="text-xs text-brand-muted">Brak dodatkowych parametrów i warstw.</span>'}
+                                            </div>
+                                        </div>
+                                        ${isThermal ? `
+                                        <div class="mt-3 flex flex-col bg-white p-2 rounded shadow-sm border border-slate-200">
+                                            <div class="flex justify-between items-center mb-1.5">
+                                                <span class="text-[10px] font-bold text-brand-muted uppercase"><i data-lucide="thermometer" class="w-3 h-3 inline mr-1 text-orange-500"></i> Udział w stratach ciepła</span>
+                                                <span class="text-xs font-black text-orange-600">${fmtDec(energyShare)} %</span>
+                                            </div>
+                                            <div class="w-full bg-slate-100 rounded-full h-1.5"><div class="bg-orange-500 h-1.5 rounded-full" style="width: ${Math.min(100, energyShare)}%"></div></div>
+                                        </div>` : '<div></div>'}
+                                    </div>
+                                    <div>
+                                        <h4 class="text-xs font-extrabold uppercase text-brand-dark mb-3">Kluczowe zalety technologii</h4>
+                                        <ul class="list-disc pl-5 text-sm space-y-2 text-brand-muted mb-5 leading-snug">
+                                            ${advs.map(a => `<li>${a}</li>`).join('')}
+                                        </ul>
+                                        <div class="bg-brand-light p-3 rounded border border-brand-border shadow-inner">
+                                            <span class="text-[9px] uppercase font-bold text-brand-muted block mb-2">Szacowana cena za 1 ${cat.unit}</span>
+                                            <div class="flex justify-between items-end mb-1">
+                                                <span class="text-xs text-brand-muted font-bold">Materiały (zmienne):</span>
+                                                <span class="text-sm font-black text-brand-dark">${fmt(dynCostMat)} PLN</span>
+                                            </div>
+                                            <div class="flex justify-between items-end border-b border-brand-border pb-2 mb-2">
+                                                <span class="text-xs text-brand-muted font-bold">Robocizna:</span>
+                                                <span class="text-sm font-black text-brand-dark">${fmt(dynCostLab)} PLN</span>
+                                            </div>
+                                            <div class="flex justify-between items-end">
+                                                <span class="text-xs text-brand-muted font-black uppercase">Razem (Jednostkowo):</span>
+                                                <span class="text-xl font-black text-brand-blue">${fmt(dynCostMat + dynCostLab)} PLN</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>`;
+                });
+                try { if(typeof lucide !== 'undefined') lucide.createIcons(); } catch(e){}
+            } catch (e) { console.error("Błąd selekcji wariantów: ", e); }
+        }
+
+        function toggleVariant(catId, varId) {
+            if (bState.expandedVar === varId) { bState.expandedVar = null; } 
+            else { bState.expandedVar = varId; bState.selections[catId] = varId; }
+            selectCat(catId);
+            tryCalcStats();
+        }
+
+        function hlL(vid, lidx, state) {
+            const el = document.getElementById(`viz-${vid}-${lidx}`);
+            const row = document.getElementById(`row-${vid}-${lidx}`);
+            if(state) {
+                if(el) el.classList.add('highlight');
+                if(row) row.classList.add('layer-row-highlight');
+            } else {
+                if(el) el.classList.remove('highlight');
+                if(row) row.classList.remove('layer-row-highlight');
+            }
+        }
+
+        function updateLayer(catId, varId, lIdx, val) {
+            val = pNum(val); 
+            const vars = getVars(catId);
+            const variant = vars.find(v => v.id === varId);
+            if(!variant || !variant.layers) return;
+            variant.layers[lIdx].t = Math.max(0, parseFloat(val) || 0);
+            bState.selections[catId] = varId;
+            bState.expandedVar = varId;
+            
+            tryCalcStats();
+            selectCat(catId); 
+            renderCatMenu(); 
+        }
+
+        function updateWindowU(catId, varId, val) {
+            val = pNum(val);
+            const vars = getVars(catId);
+            const v = vars.find(v => v.id === varId);
+            if(v) {
+                v.activeCustomU = parseFloat(val) || 0.9;
+                bState.selections[catId] = varId;
+                bState.expandedVar = varId;
+                tryCalcStats();
+                selectCat(catId); 
+                renderCatMenu(); 
+            }
+        }
+
+        function tryCalcStats() {
+            try { calcStats(); } catch(e) { console.error("Błąd obliczeń finansowych: ", e); }
+        }
+
+        function calcStats() {
+            let totalCostMat = 0;
+            let totalCostLab = 0;
+            let catCosts = [];
+            const area = parseFloat(bState.area) || 150;
+
+            CATS.forEach(c => {
+                const qty = parseFloat(bState.qty[c.unitKey]) || 0;
+                const selId = bState.selections[c.id];
+                const vars = getVars(c.id);
+                if(!vars || vars.length === 0) return;
+
+                const selVar = vars.find(v=>v.id===selId);
+
+                if(selVar) {
+                    let thicknessMod = 1;
+                    if(selVar.layers) {
+                        let origT = 0, currT = 0;
+                        selVar.layers.forEach(l => {
+                            origT += (parseFloat(l.origT) || 0);
+                            currT += (parseFloat(l.t) || 0);
+                        });
+                        if (origT > 0) thicknessMod = currT / origT;
+                    }
+                    
+                    const cValMat = (selVar.costMat || 0) * thicknessMod * qty;
+                    const cValLab = (selVar.costLab || 0) * qty;
+                    
+                    totalCostMat += cValMat;
+                    totalCostLab += cValLab;
+                    if(cValMat + cValLab > 0) catCosts.push({ name: c.name, val: cValMat + cValLab, color: c.color });
+                }
+            });
+
+            // FIZYKA BUDYNKU (U, EP, Straty)
+            const uZew = parseFloat(getUValue('sciany_zew', bState.selections.sciany_zew)) || 0.20;
+            const uOkna = parseFloat(getUValue('okna', bState.selections.okna)) || 0.90;
+            const uDach = parseFloat(getUValue('dach', bState.selections.dach)) || 0.15;
+            const uFund = parseFloat(getUValue('posadowienie', bState.selections.posadowienie)) || 0.25;
+
+            const aZew = parseFloat(bState.qty['q-sciany_zew']) || 0;
+            const aOkna = parseFloat(bState.qty['q-okna']) || 0;
+            const aDach = parseFloat(bState.qty['q-dach']) || 0;
+            const aFund = parseFloat(bState.qty['q-posadowienie']) || 0;
+
+            const htZew = uZew * aZew;
+            const htDach = uDach * aDach;
+            const htOkna = uOkna * aOkna;
+            const htFund = uFund * aFund * 0.5; 
+            
+            let ventEfficiency = bState.vent === 'rekuperacja' ? 0.25 : 1.0;
+            const htVent = area * 2.5 * 0.33 * 0.5 * ventEfficiency; 
+
+            const hTot = htZew + htDach + htOkna + htFund + htVent;
+            const qLoss = hTot * 91.2; 
+            const qGain = area * 25;   
+            
+            const EU_H = Math.max(0, (qLoss - qGain) / area);
+            const EU_CWU = 25; 
+            let EU = EU_H + EU_CWU;
+            
+            const hpParams = HEAT_PARAMS[bState.heat] || HEAT_PARAMS['pompa'];
+            let EP = EU * hpParams.epMult;
+            let energyCost = EU * area * hpParams.price;
+
+            if(bState.vent === 'rekuperacja') {
+                const ventElec = 5; 
+                EP += ventElec * HEAT_PARAMS['prad'].epMult;
+                energyCost += ventElec * area * HEAT_PARAMS['prad'].price;
+                totalCostMat += 12000; // Szacowany koszt materiałów instalacji 
+                totalCostLab += 6000;  // Szacowany koszt robocizny instalacji
+            }
+
+            if(bState.pv === 'tak') {
+                const pvElec = 25;
+                EP -= pvElec * HEAT_PARAMS['prad'].epMult;
+                EP = Math.max(0, EP);
+                
+                let pvSavings = pvElec * area * HEAT_PARAMS['prad'].price;
+                energyCost -= pvSavings;
+                energyCost = Math.max(0, energyCost);
+                totalCostMat += 20000; // Koszt zestawu PV
+                totalCostLab += 8000;  // Koszt robocizny zestawu
+            }
+
+            const totalCost = totalCostMat + totalCostLab;
+
+            document.getElementById('kpi-ep').innerText = fmtDec(EP);
+            document.getElementById('kpi-total-cost').innerText = fmt(totalCost);
+            document.getElementById('kpi-cost-mat').innerText = fmt(totalCostMat);
+            document.getElementById('kpi-cost-lab').innerText = fmt(totalCostLab);
+
+            document.getElementById('kpi-cost-m2').innerHTML = `${fmt(totalCost/area)} <span class="text-[8px] text-brand-muted font-bold">PLN</span>`;
+            document.getElementById('kpi-energy-cost').innerHTML = `${fmt(energyCost)} <span class="text-[8px] text-brand-muted font-bold">PLN</span>`;
+
+            const hpSel = document.getElementById('kpi-heat');
+            const hpPrint = document.getElementById('kpi-heat-print');
+            if(hpSel && hpPrint && hpSel.selectedIndex >= 0) {
+                hpPrint.innerText = hpSel.options[hpSel.selectedIndex].text;
+            }
+
+            const assumpEl = document.getElementById('pdf-assumptions');
+            if(assumpEl) {
+                assumpEl.innerHTML = `
+                    <div><span class="text-brand-muted block">Typ budynku:</span> <span class="font-bold">${bState.group === 'commercial' ? 'Komercyjny' : (bState.group === 'multi' ? 'Wielorodzinny' : 'Jednorodzinny')}</span></div>
+                    <div><span class="text-brand-muted block">Konstrukcja:</span> <span class="font-bold">${bState.type}, ${bState.comp}</span></div>
+                    <div><span class="text-brand-muted block">Powierzchnia:</span> <span class="font-bold">${fmt(bState.area)} m²</span></div>
+                    <div><span class="text-brand-muted block">Dach:</span> <span class="font-bold">${bState.roof}</span></div>
+                    <div><span class="text-brand-muted block">Wentylacja:</span> <span class="font-bold">${bState.vent === 'rekuperacja' ? 'Z rekuperacją' : 'Grawitacyjna'}</span></div>
+                    <div><span class="text-brand-muted block">Instalacja PV:</span> <span class="font-bold">${bState.pv === 'tak' ? 'Zestaw PV' : 'Brak'}</span></div>
+                `;
+            }
+
+            const chartList = document.getElementById('chart-costs-list');
+            if(chartList) {
+                chartList.innerHTML = '';
+                
+                if (bState.vent === 'rekuperacja') catCosts.push({ name: 'Rekuperacja (instalacja)', val: 18000, color: 'bg-indigo-300' });
+                if (bState.pv === 'tak') catCosts.push({ name: 'Instalacja Fotowoltaiczna', val: 28000, color: 'bg-orange-300' });
+
+                catCosts.sort((a,b) => b.val - a.val);
+
+                let maxCost = Math.max(...catCosts.map(c => c.val));
+                catCosts.forEach(c => {
+                    const pct = maxCost > 0 ? (c.val / maxCost) * 100 : 0;
+                    chartList.innerHTML += `
+                        <div class="flex items-center gap-3">
+                            <div class="w-32 text-[10px] font-bold text-brand-muted truncate text-right">${c.name}</div>
+                            <div class="flex-grow h-2 bg-slate-100 rounded-full overflow-hidden">
+                                <div class="h-full ${c.color} rounded-full" style="width: ${pct}%"></div>
+                            </div>
+                            <div class="w-20 text-xs font-black text-brand-dark text-right">${fmt(c.val)} <span class="text-[9px] font-normal text-slate-400">PLN</span></div>
+                        </div>
+                    `;
+                });
+            }
+        }
+
+        function exportPDF() {
+            document.querySelectorAll('input').forEach(i => i.setAttribute('value', i.value));
+
+            const hSel = document.getElementById('kpi-heat');
+            const hPrn = document.getElementById('kpi-heat-print');
+            const pHead = document.getElementById('pdf-header');
+            const actBar = document.getElementById('action-bar');
+            const leftCol = document.getElementById('config-left-col');
+            const rightCol = document.getElementById('config-right-col');
+            const mainGrid = document.getElementById('main-layout-grid');
+            const pBreak = document.getElementById('pdf-page-break');
+            const steps = document.getElementById('stepper-container-4');
+
+            if(hSel) hSel.classList.add('hidden');
+            if(hPrn) hPrn.classList.remove('hidden');
+            if(pHead) pHead.classList.remove('hidden');
+            if(actBar) actBar.classList.add('hidden');
+            if(leftCol) leftCol.classList.add('hidden'); 
+            if(pBreak) pBreak.classList.remove('hidden');
+            if(steps) steps.classList.add('hidden');
+            
+            if(mainGrid) {
+                mainGrid.classList.remove('grid', 'lg:grid-cols-12', 'gap-8');
+                mainGrid.classList.add('block');
+            }
+            if(rightCol) {
+                rightCol.classList.remove('lg:col-span-5', 'lg:sticky', 'lg:top-24');
+                rightCol.classList.add('w-full', 'mt-8');
+            }
+            
+            const now = new Date();
+            const dateEl = document.getElementById('pdf-date');
+            if(dateEl) dateEl.innerText = now.toLocaleDateString();
+            
+            let pdfList = '';
+            CATS.forEach(c => {
+                const varId = bState.selections[c.id];
+                const vars = getVars(c.id);
+                const variant = vars.find(v => v.id === varId);
+                if(!variant) return;
+                const qty = parseFloat(bState.qty[c.unitKey]) || 0;
+                
+                let thicknessMod = 1;
+                if(variant.layers) {
+                    let origT = 0, currT = 0;
+                    variant.layers.forEach(l => { origT += (parseFloat(l.origT) || 0); currT += (parseFloat(l.t) || 0); });
+                    if(origT > 0) thicknessMod = currT / origT;
+                }
+                const vCost = ((variant.costMat || 0) * thicknessMod + (variant.costLab || 0)) * qty;
+
+                const u = getUValue(c.id, variant.id);
+                const layersText = variant.layers ? variant.layers.map(l => `${l.n} (${fmtPct(l.t)} cm)`).join(', ') : (c.id === 'okna' ? `U = ${fmtDec(variant.activeCustomU || variant.customU)}` : '');
+                
+                pdfList += `
+                    <div class="mb-3 border-b border-slate-200 pb-2">
+                        <div class="text-[10px] font-bold text-brand-muted uppercase">${c.name}</div>
+                        <div class="flex justify-between items-end">
+                            <div>
+                                <div class="text-sm font-black text-brand-dark">${variant.name}</div>
+                                <div class="text-[10px] text-brand-muted mt-1">${layersText} ${u ? ` | U = ${fmtDec(u)} W/(m²K)` : ''}</div>
+                            </div>
+                            <div class="text-right text-xs font-black text-brand-blue">${fmt(vCost)} PLN</div>
+                        </div>
+                    </div>
+                `;
+            });
+            const pdfVarListEl = document.getElementById('pdf-variants-list');
+            if(pdfVarListEl) pdfVarListEl.innerHTML = pdfList;
+
+            const element = document.getElementById('pdf-content');
+            const opt = {
+                margin: 0.4,
+                filename: 'Raport_Kosztowy_Domu.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, ignoreElements: (node) => node.hasAttribute('data-html2canvas-ignore') },
+                jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' },
+                pagebreak: { mode: ['css', 'legacy'] } 
+            };
+
+            html2pdf().set(opt).from(element).save().then(() => {
+                if(hSel) hSel.classList.remove('hidden');
+                if(hPrn) hPrn.classList.add('hidden');
+                if(pHead) pHead.classList.add('hidden');
+                if(actBar) actBar.classList.remove('hidden');
+                if(leftCol) leftCol.classList.remove('hidden');
+                if(pBreak) pBreak.classList.add('hidden');
+                if(steps) steps.classList.remove('hidden');
+
+                if(mainGrid) {
+                    mainGrid.classList.add('grid', 'lg:grid-cols-12', 'gap-8');
+                    mainGrid.classList.remove('block');
+                }
+                if(rightCol) {
+                    rightCol.classList.add('lg:col-span-5', 'lg:sticky', 'lg:top-24');
+                    rightCol.classList.remove('w-full', 'mt-8');
+                }
+            });
+        }
+    </script>
+</body>
+</html>
